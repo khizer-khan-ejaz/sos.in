@@ -50,7 +50,7 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const storage = getStorage(app); // storageRef is already imported if needed for specific paths
+        const storage = getStorage(app);
 
         const getBrowserId = () => {
             let browserId = localStorage.getItem('chatbot_browser_id');
@@ -540,6 +540,7 @@
 
         let messageProcessing = false;
         let emojiPickerInstance = null;
+        let isResettingChat = false; // <<< MODIFICATION: Flag for chat reset process
 
 
         const userData = {
@@ -569,31 +570,6 @@
             }
         }
 
-        CHATBOT_TOGGLER.addEventListener('click', () => {
-            document.body.classList.toggle('show-chatbot');
-            if (document.body.classList.contains('show-chatbot')) {
-                setTimeout(() => MESSAGE_INPUT.focus(), 300);
-                initializeChatInterface(); 
-            }
-        });
-
-        CLOSE_CHATBOT_BTN.addEventListener('click', () => document.body.classList.remove('show-chatbot'));
-
-        DARK_MODE_TOGGLE_BTN.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            const icon = DARK_MODE_TOGGLE_BTN.querySelector('i');
-            const isDarkMode = document.body.classList.contains('dark-mode');
-            icon.className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
-            localStorage.setItem('chatbot-theme', isDarkMode ? 'dark' : 'light');
-            trackEvent('Dark Mode Toggled', { mode: isDarkMode ? 'dark' : 'light' });
-            if (emojiPickerInstance && typeof emojiPickerInstance.update === 'function') {
-                emojiPickerInstance.update({ theme: isDarkMode ? 'dark' : 'light' });
-            }
-        });
-        if (localStorage.getItem('chatbot-theme') === 'dark') {
-            document.body.classList.add('dark-mode');
-            DARK_MODE_TOGGLE_BTN.querySelector('i').className = 'fas fa-sun';
-        }
 
         MESSAGE_INPUT.addEventListener('input', function() {
             this.style.height = 'auto'; 
@@ -643,13 +619,10 @@
             smoothScrollToBottom();
             
             const copyButton = messageDiv.querySelector('.copy-button');
-            if(copyButton) { // Check if copy button exists (e.g. not in form HTML)
+            if(copyButton) { 
               copyButton.addEventListener('click', () => {
-                  // Create a temporary element to hold the HTML content
                   const tempEl = document.createElement('div');
-                  tempEl.innerHTML = content; // Assign the HTML content
-
-                  // Use textContent to get the plain text representation
+                  tempEl.innerHTML = content; 
                   const textToCopy = tempEl.textContent || tempEl.innerText || "";
                   
                   navigator.clipboard.writeText(textToCopy).then(() => {
@@ -677,18 +650,14 @@
             document.getElementById('typing-indicator')?.remove();
         }
         
-        // CORRECTED HERE:
         window.sendQuickReply = function(messageText) {
-            // REMOVED: addMessageToUI(sanitizeHTML(messageText), 'user-message', new Date());
             trackEvent('Quick Reply Clicked', { message: messageText });
             MESSAGE_INPUT.value = messageText; 
             handleOutgoingMessage(); 
         };
         
-        // CORRECTED HERE:
         window.startChat = function() {
             const liveChatMessage = "I'd like to start a live chat.";
-            // REMOVED: addMessageToUI(sanitizeHTML(liveChatMessage), 'user-message', new Date());
             trackEvent('Live Chat Started', {});
             MESSAGE_INPUT.value = liveChatMessage;
             handleOutgoingMessage();
@@ -803,12 +772,6 @@
             }
         });
 
-        RESET_CHAT_HISTORY_BTN.addEventListener('click', () => {
-            if (confirm('Are you sure you want to clear the chat history? This will also reset your current session.')) {
-                resetChatHistory(); 
-                trackEvent('Chat Reset Confirmed', {});
-            }
-        });
 
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && document.body.classList.contains('show-chatbot')) {
@@ -823,9 +786,8 @@
         function smoothScrollToBottom() { CHAT_BODY.scrollTo({ top: CHAT_BODY.scrollHeight, behavior: 'smooth' }); }
         function trackEvent(eventName, details) { console.log(`Analytics: ${eventName}`, details); }
 
-        // Token check - keep as is if used by your backend for rate limiting or features
         const storedToken = localStorage.getItem("chatbotToken");
-        if (!storedToken || storedToken !== "1999") { // Replace "1999" if it's a placeholder
+        if (!storedToken || storedToken !== "1999") { 
             console.warn("Chatbot Token is missing or invalid. Features may be limited.");
         } else {
             console.log("Token validated. Chatbot is active.");
@@ -852,15 +814,15 @@
             if (!container) return;
             container.innerHTML = '';
             const medicalReplies = [
-        { text: 'Fruits & Légumes', action: 'fruits_legumes', icon: 'fa-apple-alt' },
-        { text: 'Snacks & Friandises', action: 'snacks_friandises', icon: 'fa-cookie-bite' },
-        { text: 'Pain & Viennoiseries', action: 'pain_viennoiseries', icon: 'fa-bread-slice' },
-        { text: 'Boissons, Thé et Café', action: 'boissons_the_cafe', icon: 'fa-coffee' },
-        { text: 'Cosmétiques & Santé', action: 'cosmetiques_sante', icon: 'fa-heart' },
-        { text: 'Électroniques', action: 'electroniques', icon: 'fa-tv' },
-        { text: 'Halal', action: 'halal', icon: 'fa-star-and-crescent' },
-        { text: 'Autres', action: 'autres', icon: 'fa-ellipsis-h' }
-    ];
+                { text: 'Fruits & Légumes', action: 'fruits_legumes', icon: 'fa-apple-alt' },
+                { text: 'Snacks & Friandises', action: 'snacks_friandises', icon: 'fa-cookie-bite' },
+                { text: 'Pain & Viennoiseries', action: 'pain_viennoiseries', icon: 'fa-bread-slice' },
+                { text: 'Boissons, Thé et Café', action: 'boissons_the_cafe', icon: 'fa-coffee' },
+                { text: 'Cosmétiques & Santé', action: 'cosmetiques_sante', icon: 'fa-heart' },
+                { text: 'Électroniques', action: 'electroniques', icon: 'fa-tv' },
+                { text: 'Halal', action: 'halal', icon: 'fa-star-and-crescent' },
+                { text: 'Autres', action: 'autres', icon: 'fa-ellipsis-h' }
+            ];
             medicalReplies.forEach(reply => {
                 const button = document.createElement('button');
                 button.type = 'button';
@@ -885,7 +847,6 @@
             </div>`;
         }
     
-        // CORRECTED: Uses Realtime Database SDK
         async function getUserNameFromDB() {
             try {
                 const userId = localStorage.getItem('userId');
@@ -896,12 +857,10 @@
                         return snapshot.val().name || "User";
                     }
                 }
-                // Fallback to browserId query if userId method fails or not present
                 const usersQueryRef = query(dbRef(db, "users"), orderByChild("browserId"), equalTo(currentBrowserId));
                 const querySnapshot = await get(usersQueryRef);
                 if (querySnapshot.exists()) {
                     const userDataVal = querySnapshot.val();
-                    // snapshot.val() returns an object where keys are the unique IDs of matching children
                     const firstUserKey = Object.keys(userDataVal)[0];
                     return userDataVal[firstUserKey].name || "User";
                 }
@@ -918,10 +877,44 @@
             SEND_MESSAGE_BTN.disabled = !(hasMessage || hasFile) || messageProcessing;
         }
         
+        // <<< MODIFIED: initializeChatInterface >>>
         async function initializeChatInterface() {
-            CHAT_BODY.innerHTML = '';
+            // 1. Show a loading indicator immediately
+            CHAT_BODY.innerHTML = `<div class="message bot-message thinking" id="chat-init-loader">
+                                      ${createAvatarHTML('bot-message')}
+                                      <div class="thinking-indicator">
+                                          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                                      </div>
+                                   </div>`;
+            smoothScrollToBottom();
             CHAT_FORM.style.display = 'flex';
 
+            // 2. If resetting, perform cleanup tasks in the background
+            if (isResettingChat) {
+                (async () => {
+                    try {
+                        await deleteChatHistoryFromDB();
+                        const browser = String(currentBrowserId);
+                        let response = await fetch("https://khadargroups-ai-chatbot.vercel.app/clear", {
+                            method: "POST", headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_id: browser })
+                        });
+                        if (!response.ok) {
+                            let formData = new FormData(); formData.append("session_id", browser);
+                            response = await fetch("https://khadargroups-ai-chatbot.vercel.app/clear", { method: "POST", body: formData });
+                        }
+                        if (!response.ok) throw new Error(`API Clear Error: ${response.status}`);
+                        console.log("Chat history and session reset successfully on backend (background).");
+                    } catch (error) {
+                        console.error("Error resetting chat data in background:", error);
+                        showToast("Background chat data reset failed.");
+                    } finally {
+                        isResettingChat = false; // Reset the flag
+                    }
+                })();
+            }
+
+            // 3. Proceed with core logic
             const userInfoSubmitted = await checkUserInfoSubmitted();
             const welcomePanelShown = localStorage.getItem('chatWelcomePanelShown') === 'true';
 
@@ -935,7 +928,9 @@
             updateSendButtonActiveState();
         }
 
+
         async function showUserInfoForm() {
+            CHAT_BODY.innerHTML = ""; // Clear loader before adding form
             addMessageToUI(createUserInfoFormHTML(), 'bot-message', new Date());
             CHAT_FORM.style.display = 'none'; 
 
@@ -975,7 +970,8 @@
                     }
                     await storeUserInfo(name, phone, age);
                     CHAT_FORM.style.display = 'flex';
-                    localStorage.removeItem('chatWelcomePanelShown'); // Ensure welcome panel logic is re-evaluated
+                    localStorage.removeItem('chatWelcomePanelShown'); 
+                    isResettingChat = false; // Ensure flag is reset before re-initializing
                     initializeChatInterface(); 
                 } catch (error) {
                     console.error("Error submitting user info:", error);
@@ -991,13 +987,12 @@
         }
 
         function showWelcomePanel() {
-            CHAT_BODY.innerHTML = createWelcomePanelHTML();
+            CHAT_BODY.innerHTML = createWelcomePanelHTML(); // This replaces any loader
             populateWelcomeQuickReplies();
             localStorage.setItem('chatWelcomePanelShown', 'true');
             smoothScrollToBottom();
         }
         
-        // CORRECTED: Uses Realtime Database SDK
         async function storeUserInfo(name, phone, age) {
             try {
                 const usersRefNode = dbRef(db, "users");
@@ -1027,16 +1022,10 @@
             }
         }
 
-        // CORRECTED: Uses Realtime Database SDK
         async function checkUserInfoSubmitted() {
             const localUserId = localStorage.getItem('userId');
             if (localUserId) {
                 console.log("User ID found in localStorage:", localUserId);
-                // Optional: verify this userId exists in DB for added robustness
-                // const userRefVerify = dbRef(db, `users/${localUserId}`);
-                // const snapshotVerify = await get(userRefVerify);
-                // if (snapshotVerify.exists()) return true;
-                // else localStorage.removeItem('userId'); // Stale userId
                 return true;
             }
 
@@ -1049,7 +1038,7 @@
                 if (snapshot.exists()) {
                     const userDataVal = snapshot.val();
                     const userId = Object.keys(userDataVal)[0];
-                    if (userId) { // Ensure a key was actually found
+                    if (userId) { 
                         localStorage.setItem('userId', userId);
                         console.log("User ID found in DB and cached to localStorage:", userId);
                         return true;
@@ -1093,11 +1082,10 @@
                 dynamicFileInput.onchange = (ev) => {
                     if (ev.target.files.length > 0) {
                         userData.file = ev.target.files[0]; 
-                        MESSAGE_INPUT.value = "Here is the report"; // Pre-fill message
-                        handleOutgoingMessage(); // This will now include the file
+                        MESSAGE_INPUT.value = "Here is the report"; 
+                        handleOutgoingMessage(); 
                         document.body.removeChild(dynamicFileInput);
-                        localStorage.removeItem(pendingUploadKey); // Clear pending state
-                         // Remove the dynamic buttons after action
+                        localStorage.removeItem(pendingUploadKey); 
                         const dynamicButtonsContainer = CHAT_BODY.querySelector('.upload-buttons-dynamic-container');
                         if (dynamicButtonsContainer) dynamicButtonsContainer.remove();
                     }
@@ -1115,7 +1103,6 @@
                 MESSAGE_INPUT.value = "skip upload";
                 handleOutgoingMessage();
                 localStorage.removeItem(pendingUploadKey);
-                 // Remove the dynamic buttons after action
                 const dynamicButtonsContainer = CHAT_BODY.querySelector('.upload-buttons-dynamic-container');
                 if (dynamicButtonsContainer) dynamicButtonsContainer.remove();
             }
@@ -1125,7 +1112,7 @@
             if (messageProcessing) return;
 
             const userMessageText = MESSAGE_INPUT.value.trim();
-            const userFile = userData.file; // Get file from userData object
+            const userFile = userData.file; 
 
             if (!userMessageText && !userFile) return;
             
@@ -1142,9 +1129,8 @@
             MESSAGE_INPUT.value = ""; 
             MESSAGE_INPUT.dispatchEvent(new Event("input")); 
             if (userFile) { 
-                // Reset file input related UI elements
-                FILE_INPUT.value = ''; // Clear the actual file input
-                userData.file = null; // Clear file from userData
+                FILE_INPUT.value = ''; 
+                userData.file = null; 
                 FILE_UPLOAD_WRAPPER.classList.remove('file-uploaded');
                 FILE_PREVIEW_CONTAINER.innerHTML = ''; 
                 FILE_PREVIEW_CONTAINER.style.display = 'none';
@@ -1154,7 +1140,6 @@
             showTypingIndicator();
 
             try {
-                // Pass userFile to generateBotResponse
                 const botResponseText = await generateBotResponse(userMessageText, userFile); 
                 hideTypingIndicator();
                 addMessageToUI(botResponseText, "bot-message", new Date()); 
@@ -1175,7 +1160,7 @@
             const userMessage = query || "";
             try {
                 const browserIdString = String(currentBrowserId);
-                const userName1 = await getUserNameFromDB(); // Ensure this uses RTDB
+                const userName1 = await getUserNameFromDB();
                 const formData = new FormData();
                 formData.append("query", userMessage);
                 formData.append("session_id", browserIdString);
@@ -1200,7 +1185,6 @@
                         <button type="button" class="quick-reply skip-btn-dynamic"><i class="fas fa-forward"></i> Skip</button>
                     </div>`;
                 } else {
-                    // If no prompt to upload, ensure any pending state is cleared
                     localStorage.removeItem(pendingUploadKey);
                 }
 
@@ -1214,38 +1198,29 @@
             }
         }
         
+        // <<< MODIFIED: resetChatHistory >>>
         async function resetChatHistory() { 
-            CHAT_BODY.innerHTML = ""; 
-            try {
-                await deleteChatHistoryFromDB();
-                const browser = String(currentBrowserId);
-                let response = await fetch("https://khadargroups-ai-chatbot.vercel.app/clear", {
-                    method: "POST", headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: browser })
-                });
-                if (!response.ok) {
-                    let formData = new FormData(); formData.append("session_id", browser);
-                    response = await fetch("https://khadargroups-ai-chatbot.vercel.app/clear", { method: "POST", body: formData });
-                }
-                if (!response.ok) throw new Error(`API Clear Error: ${response.status}`);
-                console.log("Chat reset successfully on backend.");
-            } catch (error) {
-                console.error("Error resetting chat:", error);
-                addMessageToUI("Could not fully reset chat. Some history might remain.", "bot-message", new Date());
-            } finally {
-                localStorage.removeItem('chatWelcomePanelShown');
-                // UNCOMMENTED to forget user identity on reset, potentially triggering re-registration.
-                // If the user's record (with browserId) still exists in the `users` table,
-                // checkUserInfoSubmitted() will find it and they won't have to re-type info.
-                // If you want to force re-typing info, the user record in DB would also need deletion.
-                localStorage.removeItem('userId'); 
-                localStorage.removeItem(`pending_upload_${String(currentBrowserId)}`);
-                localStorage.removeItem('userInfoFormSkipped'); // If you use this
-                initializeChatInterface(); 
+            if (!confirm('Are you sure you want to clear the chat history? This will also reset your current session.')) {
+                return;
             }
+            trackEvent('Chat Reset Confirmed', {});
+
+            CHAT_BODY.innerHTML = ""; // Clear UI immediately
+            CHAT_FORM.style.display = 'none'; // Hide form during reset
+
+            localStorage.removeItem('chatWelcomePanelShown');
+            localStorage.removeItem('userId'); 
+            localStorage.removeItem(`pending_upload_${String(currentBrowserId)}`);
+            localStorage.removeItem('userInfoFormSkipped'); 
+
+            isResettingChat = true; // Set flag for initializeChatInterface
+
+            // Call initializeChatInterface. It will show a loader, then handle UI.
+            // Not awaited, so the button click feels responsive.
+            initializeChatInterface(); 
         }
 
-        // These functions use RTDB SDK and should be correct as per your original snippet if they worked before.
+
         async function storeChatMessage(message, sender) {
             try {
                 const userIdOrBrowserId = localStorage.getItem('userId') || currentBrowserId;
@@ -1253,7 +1228,7 @@
                 const chatsRefNode = dbRef(db, path);
                 const newMessageRef = push(chatsRefNode);
                 await set(newMessageRef, {
-                    message: typeof message === 'string' ? message : JSON.stringify(message), // Storing HTML as string
+                    message: typeof message === 'string' ? message : JSON.stringify(message), 
                     sender: sender,
                     timestamp: Date.now(),
                     userId: localStorage.getItem('userId') || null 
@@ -1273,18 +1248,13 @@
                 const chatsRefNode = dbRef(db, path);
                 const queryRefNode = query(chatsRefNode, orderByChild('timestamp'));
 
-                // Use 'get' for a one-time read if you don't need real-time updates after initial load
                 const snapshot = await get(queryRefNode);
-                CHAT_BODY.innerHTML = ""; // Clear before rendering
+                CHAT_BODY.innerHTML = ""; 
                 
                 if (!snapshot.exists()) {
-                    // If no history, and user info is submitted, show welcome panel.
-                    // If user info NOT submitted, initializeChatInterface will handle it.
                     if (await checkUserInfoSubmitted()) {
                          showWelcomePanel();
                     } else {
-                        // This case should ideally be handled by initializeChatInterface's main logic
-                        // which would call showUserInfoForm.
                         console.log("No chat history and user info not submitted, deferring to initializeChatInterface logic.");
                     }
                     return;
@@ -1298,25 +1268,21 @@
                     });
                 });
 
-                // Messages are already ordered by Firebase query (orderByChild('timestamp'))
-                // If not, client-side sort: messages.sort((a, b) => a.timestamp - b.timestamp);
-
                 messages.forEach(msg => {
                     addMessageToUI(
-                        msg.message, // This is the stored HTML/text
+                        msg.message, 
                         msg.sender === "user" ? "user-message" : "bot-message",
                         new Date(msg.timestamp)
                     );
                 });
 
                 localStorage.setItem('chatWelcomePanelShown', 'true');
-                checkForPendingUploads(); // Check after rendering history
+                checkForPendingUploads(); 
                 smoothScrollToBottom();
             
             } catch (error) {
                 console.error("Error fetching chat history:", error);
                 showToast("Could not load chat history");
-                // Fallback to welcome panel if history load fails but user is known
                 if (await checkUserInfoSubmitted()) {
                     showWelcomePanel();
                 }
@@ -1332,12 +1298,47 @@
                 console.log("Chat history deleted successfully from DB for path:", path);
             } catch (error) {
                 console.error("Error deleting chat history from DB:", error);
-                throw error; // Re-throw to be caught by resetChatHistory
+                throw error; 
             }
         }
         
-        // Initial load check
+        // <<< MODIFIED: Event Listeners >>>
+        CHATBOT_TOGGLER.addEventListener('click', () => {
+            document.body.classList.toggle('show-chatbot');
+            if (document.body.classList.contains('show-chatbot')) {
+                setTimeout(() => MESSAGE_INPUT.focus(), 300);
+                isResettingChat = false; // Ensure flag is false on normal open
+                initializeChatInterface(); 
+            }
+        });
+
+        CLOSE_CHATBOT_BTN.addEventListener('click', () => document.body.classList.remove('show-chatbot'));
+        
+        DARK_MODE_TOGGLE_BTN.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const icon = DARK_MODE_TOGGLE_BTN.querySelector('i');
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            icon.className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
+            localStorage.setItem('chatbot-theme', isDarkMode ? 'dark' : 'light');
+            trackEvent('Dark Mode Toggled', { mode: isDarkMode ? 'dark' : 'light' });
+            if (emojiPickerInstance && typeof emojiPickerInstance.update === 'function') {
+                emojiPickerInstance.update({ theme: isDarkMode ? 'dark' : 'light' });
+            }
+        });
+        if (localStorage.getItem('chatbot-theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            DARK_MODE_TOGGLE_BTN.querySelector('i').className = 'fas fa-sun';
+        }
+        
+        RESET_CHAT_HISTORY_BTN.addEventListener('click', () => {
+            // The confirm dialog is now inside resetChatHistory
+            resetChatHistory(); 
+        });
+
+
+        // <<< MODIFIED: Initial load check >>>
         if (document.body.classList.contains('show-chatbot')) {
+            isResettingChat = false; // Ensure flag is false on initial load
             initializeChatInterface();
         }
 
